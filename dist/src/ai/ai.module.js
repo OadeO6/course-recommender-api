@@ -8,22 +8,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AiModule = void 0;
 const common_1 = require("@nestjs/common");
-const langchain_service_1 = require("./langchain.service");
-const prompt_service_1 = require("./prompt.service");
-const chain_manager_service_1 = require("./chain-manager.service");
 const ai_controller_1 = require("./ai.controller");
-const course_discovery_service_1 = require("./services/course-discovery.service");
 const job_skills_analyzer_service_1 = require("./services/job-skills-analyzer.service");
-const source_generator_module_1 = require("../source-generator/source-generator.module");
+const langchain_service_1 = require("./langchain.service");
+const ai_base_service_1 = require("./services/ai-base.service");
+const course_discovery_service_1 = require("./services/course-discovery.service");
 let AiModule = class AiModule {
 };
 exports.AiModule = AiModule;
 exports.AiModule = AiModule = __decorate([
     (0, common_1.Module)({
-        imports: [source_generator_module_1.SourceGeneratorModule],
         controllers: [ai_controller_1.AiController],
-        providers: [langchain_service_1.LangchainService, prompt_service_1.PromptService, chain_manager_service_1.ChainManagerService, course_discovery_service_1.CourseDiscoveryService, job_skills_analyzer_service_1.JobSkillsAnalyzerService],
-        exports: [langchain_service_1.LangchainService, prompt_service_1.PromptService, chain_manager_service_1.ChainManagerService, course_discovery_service_1.CourseDiscoveryService, job_skills_analyzer_service_1.JobSkillsAnalyzerService],
+        providers: [job_skills_analyzer_service_1.JobSkillsAnalyzerService, langchain_service_1.LangchainService, ai_base_service_1.AIBaseService, course_discovery_service_1.CourseGenerationService],
+        exports: [job_skills_analyzer_service_1.JobSkillsAnalyzerService, langchain_service_1.LangchainService, ai_base_service_1.AIBaseService, course_discovery_service_1.CourseGenerationService],
     })
 ], AiModule);
 //# sourceMappingURL=ai.module.js.map

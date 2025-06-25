@@ -15,29 +15,29 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AiController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
-const course_discovery_service_1 = require("./services/course-discovery.service");
-const discover_courses_dto_1 = require("./dto/discover-courses.dto");
+const job_skills_analyzer_service_1 = require("./services/job-skills-analyzer.service");
 let AiController = class AiController {
-    courseDiscovery;
-    constructor(courseDiscovery) {
-        this.courseDiscovery = courseDiscovery;
+    jobSkillsAnalyzerService;
+    constructor(jobSkillsAnalyzerService) {
+        this.jobSkillsAnalyzerService = jobSkillsAnalyzerService;
     }
-    async discoverCourses(body) {
-        return this.courseDiscovery.discoverCourses(body.jobTitle);
+    async analyzeJob(jobTitle) {
+        return this.jobSkillsAnalyzerService.analyzeJobSkills(jobTitle);
     }
 };
 exports.AiController = AiController;
 __decorate([
-    (0, common_1.Post)('discover-courses'),
-    (0, swagger_1.ApiBody)({ type: discover_courses_dto_1.DiscoverCoursesDto }),
-    __param(0, (0, common_1.Body)()),
+    (0, common_1.Get)('analyze-job/:jobTitle'),
+    (0, swagger_1.ApiOperation)({ summary: 'Analyze job skills and generate search queries' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Job analysis completed' }),
+    __param(0, (0, common_1.Param)('jobTitle')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [discover_courses_dto_1.DiscoverCoursesDto]),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
-], AiController.prototype, "discoverCourses", null);
+], AiController.prototype, "analyzeJob", null);
 exports.AiController = AiController = __decorate([
-    (0, swagger_1.ApiTags)('ai'),
+    (0, swagger_1.ApiTags)('AI Services'),
     (0, common_1.Controller)('ai'),
-    __metadata("design:paramtypes", [course_discovery_service_1.CourseDiscoveryService])
+    __metadata("design:paramtypes", [job_skills_analyzer_service_1.JobSkillsAnalyzerService])
 ], AiController);
 //# sourceMappingURL=ai.controller.js.map

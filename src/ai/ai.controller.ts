@@ -1,16 +1,16 @@
-import { Controller, Post, Body } from '@nestjs/common';
-import { ApiTags, ApiBody } from '@nestjs/swagger';
-import { CourseDiscoveryService } from './services/course-discovery.service';
-import { DiscoverCoursesDto } from './dto/discover-courses.dto';
+import { Controller, Get, Param } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { JobSkillsAnalyzerService } from './services/job-skills-analyzer.service';
 
-@ApiTags('ai')
+@ApiTags('AI Services')
 @Controller('ai')
 export class AiController {
-  constructor(private readonly courseDiscovery: CourseDiscoveryService) {}
+  constructor(private readonly jobSkillsAnalyzerService: JobSkillsAnalyzerService) {}
 
-  @Post('discover-courses')
-  @ApiBody({ type: DiscoverCoursesDto })
-  async discoverCourses(@Body() body: DiscoverCoursesDto) {
-    return this.courseDiscovery.discoverCourses(body.jobTitle);
+  @Get('analyze-job/:jobTitle')
+  @ApiOperation({ summary: 'Analyze job skills and generate search queries' })
+  @ApiResponse({ status: 200, description: 'Job analysis completed' })
+  async analyzeJob(@Param('jobTitle') jobTitle: string) {
+    return this.jobSkillsAnalyzerService.analyzeJobSkills(jobTitle);
   }
 } 

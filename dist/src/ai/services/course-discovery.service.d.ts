@@ -1,18 +1,21 @@
-import { JobSkillsAnalyzerService } from './job-skills-analyzer.service';
-import { CourseScraperService, CourseResult } from '../../source-generator/course-scraper.service';
-export interface CourseDiscoveryResult {
-    jobTitle: string;
-    skills: string[];
-    courses: string[];
-    totalCourses: number;
-}
-export declare class CourseDiscoveryService {
-    private jobSkillsAnalyzer;
-    private courseScraper;
-    private embeddings;
-    private vectorStore;
-    constructor(jobSkillsAnalyzer: JobSkillsAnalyzerService, courseScraper: CourseScraperService);
-    discoverCourses(jobTitle: string): Promise<CourseDiscoveryResult>;
-    searchSimilarCourses(query: string, limit?: number): Promise<CourseResult[]>;
-    private buildCourseSummary;
+import { AIBaseService } from './ai-base.service';
+export declare class CourseGenerationService {
+    private readonly aiBaseService;
+    private readonly logger;
+    private readonly outputSchema;
+    constructor(aiBaseService: AIBaseService);
+    generateCoursesForJob(jobTitle: string): Promise<{
+        data: {
+            title: string;
+            courses: {
+                title: string;
+                url: string;
+                type: "Video" | "Course" | "Blog" | "Doc";
+                snippet: string;
+            }[];
+            description: string;
+        }[];
+        badTittle: boolean;
+        successful: boolean;
+    }>;
 }

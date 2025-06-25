@@ -1,68 +1,108 @@
-import { Injectable } from '@nestjs/common';
-import { JobSkillsAnalyzerService, JobSkillsResult } from './job-skills-analyzer.service';
-import { CourseScraperService, CourseResult } from '../../source-generator/course-scraper.service';
-import { MemoryVectorStore } from 'langchain/vectorstores/memory';
-import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
-import { Document } from '@langchain/core/documents';
-
-export interface CourseDiscoveryResult {
-  jobTitle: string;
-  skills: string[];
-  courses: string[]; // Summaries
-  totalCourses: number;
-}
+import { Injectable, Logger } from '@nestjs/common';
+import { AIBaseService } from './ai-base.service';
+import { PromptTemplate } from '@langchain/core/prompts';
+import { RunnableSequence } from '@langchain/core/runnables';
+import { StructuredOutputParser } from '@langchain/core/output_parsers';
+import { z } from 'zod';
 
 @Injectable()
-export class CourseDiscoveryService {
-  private embeddings = new GoogleGenerativeAIEmbeddings({
-    apiKey: process.env.GOOGLE_API_KEY,
-    modelName: 'embedding-001',
+export class CourseGenerationService {
+  private readonly logger = new Logger(CourseGenerationService.name);
+
+  private readonly outputSchema = z.object({
+    badTittle: z.boolean(),
+    successful: z.boolean(),
+    data: z.array(
+      z.object({
+        title: z.string(),
+        description: z.string(),
+        courses: z.array(
+          z.object({
+            title: z.string(),
+            url: z.string().url(),
+            type: z.enum(['Blog', 'Video', 'Course', 'Doc']),
+            snippet: z.string(),
+          })
+        ),
+      })
+    ),
   });
-  private vectorStore = new MemoryVectorStore(this.embeddings);
 
-  constructor(
-    private jobSkillsAnalyzer: JobSkillsAnalyzerService,
-    private courseScraper: CourseScraperService,
-  ) {}
+  constructor(private readonly aiBaseService: AIBaseService) {}
 
-  async discoverCourses(jobTitle: string): Promise<CourseDiscoveryResult> {
-    // 1. Analyze job and generate queries
-    const jobAnalysis: JobSkillsResult = await this.jobSkillsAnalyzer.analyzeJobSkills(jobTitle);
+  async generateCoursesForJob(jobTitle: string) {
+    try {
+      await this.aiBaseService.ensureVectorStoreReady();
 
-    // 2. Scrape courses using real scraper
-    const courses: CourseResult[] = await this.courseScraper.scrapeCourses(jobAnalysis.queries);
+      const outputParser = StructuredOutputParser.fromZodSchema(this.outputSchema);
 
-    // 3. Build summaries
-    const summaries = courses.map(this.buildCourseSummary);
+      // TODO: fix false negative for badRequest and false positive for successful
+      const prompt = PromptTemplate.fromTemplate(`
+You are an expert career coach creating comprehensive course bundles for a {jobTitle} position.
 
-    // 4. Store in vector DB
-    await this.vectorStore.addDocuments(
-      courses.map(course => new Document({
-        pageContent: this.buildCourseSummary(course),
-        metadata: { ...course }
-      }))
-    );
+Analyze the retrieved courses and determine if there's sufficient data to create meaningful course bundles.
 
-    return {
-      jobTitle,
-      skills: jobAnalysis.skills,
-      courses: summaries,
-      totalCourses: courses.length,
-    };
+If and only if {jobTitle} is verry far from looking like a job title or career aspiration in whatever field, return:
+{{
+  "badTittle": true,
+  "successful": false,
+  "data": []
+}}
+if it look like a job tittle with just a bit of typo, proceed
+
+Retrieved Courses:
+{context}
+
+If there are fewer than 6 relevant courses OR the courses don't adequately cover the skills needed for {jobTitle}, return:
+{{
+  "badRequest": false,
+  "successful": false,
+  "data": []
+}}
+dont proceed if you are unnable to form a conrensive set of courses required for the job title
+
+If there's sufficient data, create 3-5 different learning bundles for different learning preferences:
+1. Blog-Focused Track - For readers who prefer articles and written content
+2. Video-Based Track - For visual learners who prefer video tutorials
+3. Mixed Learning Track - Combination of different content types
+4. Hands-On Track - For practical, interactive learning
+5. Structured Course Track - For traditional, comprehensive courses
+
+IMPORTANT RULES:
+- Each bundle should have 4-7 courses depending on job complexity
+- Courses can appear in multiple bundles if they fit different learning styles
+- Each bundle must be comprehensive enough to prepare someone for the {jobTitle} role
+- Use ONLY the courses provided in the context above
+- Ensure URLs are valid and types match exactly: 'Blog', 'Video', 'Course', or 'Doc'
+
+{format_instructions}
+`);
+
+      const chain = RunnableSequence.from([
+        {
+          context: (input: { jobTitle: string }) =>
+            this.aiBaseService.getNSimilarDocuments(input.jobTitle),
+          jobTitle: (input: { jobTitle: string }) => input.jobTitle,
+          format_instructions: () => outputParser.getFormatInstructions(),
+        },
+        prompt,
+        this.aiBaseService.getLLM(),
+        outputParser,
+      ]);
+
+      const result = await chain.invoke({ jobTitle });
+      console.log('result', result);
+
+      this.logger.log(`Generated courses for ${jobTitle}: ${result.successful ? 'Success' : 'Failed'}`);
+      return result;
+
+    } catch (error) {
+      this.logger.error(`Error generating courses for ${jobTitle}: ${error.message}`, error.stack);
+      return {
+        badTittle: false,
+        successful: false,
+        data: []
+      };
+    }
   }
-
-  async searchSimilarCourses(query: string, limit: number = 5): Promise<CourseResult[]> {
-    const results = await this.vectorStore.similaritySearch(query, limit);
-    return results.map(doc => doc.metadata as CourseResult);
-  }
-
-  private buildCourseSummary(course: CourseResult): string {
-    let summary = `Title: ${course.title}\n`;
-    summary += `URL: ${course.url}\n`;
-    summary += `Skill: ${course.skill}\n`;
-    summary += `Data Type: ${course.dataType}\n`;
-    summary += `Query: ${course.query}\n`;
-    summary += `Snippet: ${course.snippet}`;
-    return summary;
-  }
-} 
+}

@@ -18,6 +18,9 @@ const source_generator_module_1 = require("./source-generator/source-generator.m
 const ai_module_1 = require("./ai/ai.module");
 const auth_module_1 = require("./auth/auth.module");
 const user_module_1 = require("./user/user.module");
+const recommendation_module_1 = require("./recommendation/recommendation.module");
+const nestjs_1 = require("@bull-board/nestjs");
+const express_1 = require("@bull-board/express");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -38,6 +41,11 @@ exports.AppModule = AppModule = __decorate([
             ai_module_1.AiModule,
             auth_module_1.AuthModule,
             user_module_1.UserModule,
+            recommendation_module_1.RecommendationModule,
+            nestjs_1.BullBoardModule.forRoot({
+                route: '/admin/queues',
+                adapter: express_1.ExpressAdapter,
+            }),
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

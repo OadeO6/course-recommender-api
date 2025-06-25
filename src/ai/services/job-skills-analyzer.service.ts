@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { AIBaseService } from './ai-base.service';
 import { PromptTemplate } from '@langchain/core/prompts';
 import { RunnableSequence } from '@langchain/core/runnables';
+import { z } from 'zod';
+import { StructuredOutputParser } from '@langchain/core/output_parsers';
 
 export interface JobSkillsResult {
   jobTitle: string;
@@ -18,96 +20,110 @@ export interface SearchQuery {
 
 @Injectable()
 export class JobSkillsAnalyzerService {
-  private llm: ChatGoogleGenerativeAI;
   private skillsChain: RunnableSequence;
   private queryChain: RunnableSequence;
+  llm: any;
 
-  constructor() {
-    this.llm = new ChatGoogleGenerativeAI({
-      model: 'gemini-1.5-pro',
-      temperature: 0.1,
-      apiKey: process.env.GOOGLE_API_KEY,
-    });
+  // Define schemas as class properties to avoid duplication
+  private skillsSchema = z.object({
+    results: z.array(z.object({
+      jobTitle: z.string(),
+      skills: z.array(z.string())
+    }))
+  });
 
+  private querySchema = z.object({
+    results: z.array(z.object({
+      jobTitle: z.string(),
+      queries: z.array(z.object({
+        skill: z.string(),
+        type: z.enum(['pdf', 'doc', 'blog', 'video', 'course']),
+        query: z.string(),
+        targetSite: z.string().optional()
+      }))
+    }))
+  });
+
+  constructor(private aiBaseService: AIBaseService) {
     this.initializeChains();
+    this.llm = this.aiBaseService.getLLM();
   }
 
   private initializeChains() {
-    // Skills extraction chain
+    const llm = this.aiBaseService.getLLM();
+
+    // Create structured output parsers using class properties
+    const skillsParser = StructuredOutputParser.fromZodSchema(this.skillsSchema);
+    const queryParser = StructuredOutputParser.fromZodSchema(this.querySchema);
+
+    // Skills extraction chain with structured output
     const skillsPrompt = PromptTemplate.fromTemplate(`
       Analyze the job title: "{jobTitle}"
-      
       Extract 5-8 key technical skills required for this role.
-      Return only the skill names, separated by commas.
-      
-      Example: "Python, SQL, Machine Learning, Data Visualization"
+      {format_instructions}
     `);
 
     this.skillsChain = RunnableSequence.from([
       skillsPrompt,
-      this.llm,
+      llm,
+      skillsParser,
     ]);
 
-    // Query generation chain
+    // Query generation chain with structured output
     const queryPrompt = PromptTemplate.fromTemplate(`
-      Generate optimized search queries for job title: "{jobTitle}" and skills: {skills}
-      
-      Create search queries that use filetype: and site: filters. Each query should target one specific site or filetype.
-      
-      Generate queries like:
-      - filetype:pdf "job title" guide tutorial
-      - site:dev.to "job title" tutorial
-      - site:youtube.com "skill name" tutorial
-      - site:coursera.org "job title" course
-      - filetype:video "job title" tutorial
-      
-      For each skill, also generate:
-      - site:dev.to "skill name" tutorial
-      - site:youtube.com "skill name" tutorial
-      
-      Return as JSON array with format:
-      [
-        {{"skill": "General", "type": "pdf", "query": "filetype:pdf \\"job title\\" guide"}},
-        {{"skill": "General", "type": "blog", "query": "site:dev.to \\"job title\\" tutorial", "targetSite": "dev.to"}},
-        {{"skill": "skill name", "type": "video", "query": "site:youtube.com \\"skill name\\" tutorial", "targetSite": "youtube.com"}}
-      ]
+      As an expert SEO and web scraper, generate optimized search queries for the job title: {jobTitle} and skills: {skills}
+      Create search queries using filetype: and site: filters. Each query should target one specific site or filetype.
+      Generate multiple queries like (but not limited to) these examples:
+      - filetype:pdf "{jobTitle}" guide tutorial
+      - site:dev.to "{jobTitle}" tutorial
+      - site:youtube.com "{skills}" tutorial
+      - site:coursera.org "{skills}" tutorial
+      - site:coursera.org "{jobTitle}" course
+      - filetype:video "{jobTitle}" tutorial
+      Use your expertise to choose the best sites based on the job. For example:
+      - For a Python job: realpython.com
+      - For a data science job: towardsdatascience.com
+      {format_instructions}
     `);
 
     this.queryChain = RunnableSequence.from([
       queryPrompt,
-      this.llm,
+      llm,
+      queryParser,
     ]);
   }
 
   async analyzeJobSkills(jobTitle: string): Promise<JobSkillsResult> {
     try {
-      // Extract skills using AI
-      const skillsResponse = await this.skillsChain.invoke({ jobTitle });
-      const skillsText = skillsResponse.content.toString();
-      const skills = skillsText.split(',').map(s => s.trim()).filter(s => s.length > 0);
-
-      // Generate optimized queries using AI
-      const queryResponse = await this.queryChain.invoke({ 
-        jobTitle, 
-        skills: skills.join(', ') 
+      // Extract skills using structured output
+      console.log('Analyzing job skills for:', jobTitle);
+      const skillsResult = await this.skillsChain.invoke({
+        jobTitle,
+        format_instructions: StructuredOutputParser.fromZodSchema(this.skillsSchema).getFormatInstructions()
       });
-      
-      let queries: SearchQuery[] = [];
-      try {
-        // Parse the JSON response from AI
-        const queryText = queryResponse.content.toString();
-        // Extract JSON from the response (handle markdown formatting)
-        const jsonMatch = queryText.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          queries = JSON.parse(jsonMatch[0]);
-        } else {
-          // Fallback to basic queries if parsing fails
-          queries = this.generateFallbackQueries(jobTitle, skills);
-        }
-      } catch (parseError) {
-        console.error('Error parsing AI query response:', parseError);
-        queries = this.generateFallbackQueries(jobTitle, skills);
+
+      // Add safety check for empty results
+      if (!skillsResult.results || skillsResult.results.length === 0) {
+        throw new Error('No skills extracted from AI response');
       }
+
+      const skills = skillsResult.results[0].skills;
+      console.log('Extracted skills:', skills);
+
+      // Generate optimized queries using structured output
+      const queryResult = await this.queryChain.invoke({
+        jobTitle,
+        skills: skills.join(', '), // This is fine as a comma-separated string
+        format_instructions: StructuredOutputParser.fromZodSchema(this.querySchema).getFormatInstructions()
+      });
+
+      // Add safety check for empty query results
+      if (!queryResult.results || queryResult.results.length === 0) {
+        throw new Error('No queries generated from AI response');
+      }
+
+      const queries = queryResult.results[0].queries;
+      console.log('Generated queries:', queries);
 
       return {
         jobTitle,
@@ -121,9 +137,228 @@ export class JobSkillsAnalyzerService {
     }
   }
 
+  /**
+   * Generate and analyze top 20 recent/common job titles in a single ML request
+   * @returns Promise<JobSkillsResult[]> Array of job analysis results for trending jobs
+   */
+  async analyzeTrendingJobSkills(): Promise<JobSkillsResult[]> {
+    try {
+      console.log('Generating trending job titles and analyzing skills in single request...');
+
+      // Create comprehensive schema for everything in one request
+      const trendingJobsSchema = z.object({
+        results: z.array(z.object({
+          jobTitle: z.string(),
+          skills: z.array(z.string()),
+          queries: z.array(z.object({
+            skill: z.string(),
+            type: z.enum(['pdf', 'doc', 'blog', 'video', 'course']),
+            query: z.string(),
+            targetSite: z.string().optional()
+          }))
+        })).min(15).max(25)
+      });
+
+      const trendingJobsParser = StructuredOutputParser.fromZodSchema(trendingJobsSchema);
+
+      // Single comprehensive prompt that does everything
+      const comprehensiveTrendingPrompt = PromptTemplate.fromTemplate(`
+        As an expert in the current job market, technology trends, and SEO, perform a complete analysis:
+
+        1. FIRST: Generate 20 of the most in-demand, trending, and well-paying job titles for 2024-2025.
+
+        Focus on:
+        - Technology and software development roles
+        - Data science and AI/ML positions
+        - Digital marketing and growth roles
+        - Product and project management
+        - Emerging fields like blockchain, cybersecurity, cloud computing
+        - Remote-first and freelance-friendly positions
+
+        Include a mix of entry to senior level positions.
+
+        2. THEN: For EACH job title you generated:
+        - Extract 5-8 key technical skills required for that role
+        - Create optimized search queries using filetype: and site: filters
+
+        Generate multiple query types for each job:
+        - filetype:pdf "[jobTitle]" guide tutorial
+        - site:dev.to "[jobTitle]" tutorial
+        - site:youtube.com "[skills]" tutorial
+        - site:coursera.org "[skills]" course
+        - site:github.com "[skills]" projects
+
+        Use your expertise to choose the best sites based on each job type:
+        - For Python jobs: realpython.com, python.org
+        - For data science: towardsdatascience.com, kaggle.com
+        - For web dev: developer.mozilla.org, css-tricks.com
+        - For DevOps: kubernetes.io, docker.com
+
+        {format_instructions}
+      `);
+
+      // Single chain that does everything
+      const comprehensiveChain = RunnableSequence.from([
+        comprehensiveTrendingPrompt,
+        this.llm,
+        trendingJobsParser
+      ]);
+
+      const result = await comprehensiveChain.invoke({
+        format_instructions: trendingJobsParser.getFormatInstructions()
+      });
+
+      console.log(`Single-request analysis completed for ${result.results.length} trending jobs`);
+
+      // Transform to match our interface
+      const jobSkillsResults: JobSkillsResult[] = result.results.map(item => ({
+        jobTitle: item.jobTitle,
+        skills: item.skills,
+        queries: item.queries
+      }));
+
+      return jobSkillsResults;
+
+    } catch (error) {
+      console.error('Single-request trending jobs analysis failed:', error);
+      // Fallback to predefined trending job titles with existing analysis
+      const fallbackTrendingJobs = this.getFallbackTrendingJobs();
+      console.log('Using fallback trending jobs with bulk analysis:', fallbackTrendingJobs);
+      return await this.analyzeMultipleJobSkills(fallbackTrendingJobs);
+    }
+  }
+
+  /**
+   * Get fallback list of trending job titles when AI generation fails
+   * @returns string[] Array of trending job titles
+   */
+  private getFallbackTrendingJobs(): string[] {
+    return [
+      'AI Engineer',
+      'Data Scientist',
+      'Full Stack Developer',
+      'DevOps Engineer',
+      'Product Manager',
+      'UX/UI Designer',
+      'Cloud Solutions Architect',
+      'Cybersecurity Analyst',
+      'Machine Learning Engineer',
+      'Software Engineer',
+      'Digital Marketing Manager',
+      'Blockchain Developer',
+      'React Developer',
+      'Python Developer',
+      'Data Analyst',
+      'Scrum Master',
+      'Site Reliability Engineer',
+      'Mobile App Developer',
+      'Growth Hacker',
+      'Technical Product Manager'
+    ];
+  }
+
+  /**
+   * Analyze multiple job titles in a single AI request using structured output
+   * @param jobTitles Array of job titles to analyze
+   * @returns Promise<JobSkillsResult[]> Array of job analysis results
+   */
+  async analyzeMultipleJobSkills(jobTitles: string[]): Promise<JobSkillsResult[]> {
+    try {
+      console.log(`Starting bulk analysis for ${jobTitles.length} job titles in single request`);
+
+      // Use the same schemas as class properties for consistency
+      const bulkSkillsParser = StructuredOutputParser.fromZodSchema(this.skillsSchema);
+      const bulkQueryParser = StructuredOutputParser.fromZodSchema(this.querySchema);
+
+      // Create bulk skills extraction prompt
+      const bulkSkillsPrompt = PromptTemplate.fromTemplate(`
+        Analyze the following job titles and extract 5-8 key technical skills required for each role.
+        Job titles: {jobTitles}
+
+        {format_instructions}
+      `);
+
+      // Fixed: Create bulk query generation prompt with correct parameters
+      const bulkQueryPrompt = PromptTemplate.fromTemplate(`
+        As an expert SEO and web scraper, generate optimized search queries for multiple job titles and their skills.
+        Job data: {jobData}
+
+        For each job title, create search queries using filetype: and site: filters. Each query should target one specific site or filetype.
+        Generate multiple queries like (but not limited to) these examples:
+        - filetype:pdf "[jobTitle]" guide tutorial
+        - site:dev.to "[jobTitle]" tutorial
+        - site:youtube.com "[skills]" tutorial
+        - site:coursera.org "[skills]" tutorial
+        - site:coursera.org "[jobTitle]" course
+
+        Use your expertise to choose the best sites based on the job. For example:
+        - For Python jobs: realpython.com
+        - For data science jobs: towardsdatascience.com
+
+        {format_instructions}
+      `);
+
+      // Extract skills for all job titles in one request
+      const skillsChain = RunnableSequence.from([
+        bulkSkillsPrompt,
+        this.llm,
+        bulkSkillsParser // Removed OutputFixingParser
+      ]);
+
+      const skillsResult = await skillsChain.invoke({
+        jobTitles: jobTitles.join(', '),
+        format_instructions: bulkSkillsParser.getFormatInstructions()
+      });
+
+      console.log('Bulk skills extraction completed:', skillsResult.results?.length || 0);
+
+      // Add safety check
+      if (!skillsResult.results || skillsResult.results.length === 0) {
+        throw new Error('No skills extracted from bulk AI response');
+      }
+
+      // Generate queries for all jobs in one request
+      const queryChain = RunnableSequence.from([
+        bulkQueryPrompt,
+        this.llm,
+        bulkQueryParser// Removed OutputFixingParser
+      ]);
+
+      // Fixed: Now using jobData parameter that matches the template
+      const queryResult = await queryChain.invoke({
+        jobData: JSON.stringify(skillsResult.results, null, 2),
+        format_instructions: bulkQueryParser.getFormatInstructions()
+      });
+
+      console.log('Bulk query generation completed:', queryResult.results?.length || 0);
+
+      // Add safety check
+      if (!queryResult.results) {
+        queryResult.results = [];
+      }
+
+      // Combine skills and queries data
+      const results: JobSkillsResult[] = skillsResult.results.map(skillItem => {
+        const queryItem = queryResult.results.find(q => q.jobTitle === skillItem.jobTitle);
+        return {
+          jobTitle: skillItem.jobTitle,
+          skills: skillItem.skills,
+          queries: queryItem?.queries || this.generateFallbackQueries(skillItem.jobTitle, skillItem.skills)
+        };
+      });
+
+      console.log(`Bulk analysis completed successfully for ${results.length} job titles`);
+      return results;
+    } catch (error) {
+      console.error('Bulk AI analysis failed:', error);
+      // Complete fallback: analyze each job title individually using fallback methods
+      return jobTitles.map(jobTitle => this.fallbackAnalysis(jobTitle));
+    }
+  }
+
   private generateFallbackQueries(jobTitle: string, skills: string[]): SearchQuery[] {
     const queries: SearchQuery[] = [];
-    
+
     // Job-focused queries
     queries.push({
       skill: 'General',
@@ -168,7 +403,7 @@ export class JobSkillsAnalyzerService {
   private fallbackAnalysis(jobTitle: string): JobSkillsResult {
     const skills = this.extractSkillsFromJobTitle(jobTitle);
     const queries = this.generateFallbackQueries(jobTitle, skills);
-    
+
     return {
       jobTitle,
       skills,
@@ -189,7 +424,6 @@ export class JobSkillsAnalyzerService {
     };
 
     const lowerJobTitle = jobTitle.toLowerCase();
-    
     for (const [job, skills] of Object.entries(skillMap)) {
       if (lowerJobTitle.includes(job)) {
         return skills;
@@ -198,4 +432,4 @@ export class JobSkillsAnalyzerService {
 
     return ['Programming', 'Problem Solving', 'Communication'];
   }
-} 
+}

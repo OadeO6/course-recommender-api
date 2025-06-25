@@ -1,7 +1,6 @@
-import { CourseDiscoveryService } from './services/course-discovery.service';
-import { DiscoverCoursesDto } from './dto/discover-courses.dto';
+import { JobSkillsAnalyzerService } from './services/job-skills-analyzer.service';
 export declare class AiController {
-    private readonly courseDiscovery;
-    constructor(courseDiscovery: CourseDiscoveryService);
-    discoverCourses(body: DiscoverCoursesDto): Promise<import("./services/course-discovery.service").CourseDiscoveryResult>;
+    private readonly jobSkillsAnalyzerService;
+    constructor(jobSkillsAnalyzerService: JobSkillsAnalyzerService);
+    analyzeJob(jobTitle: string): Promise<import("./services/job-skills-analyzer.service").JobSkillsResult>;
 }

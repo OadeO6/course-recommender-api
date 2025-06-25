@@ -9,6 +9,7 @@ export interface CourseResult {
   dataType: string;
   skill: string;
   query: string;
+  jobTitle?: string;
 }
 
 export interface SearchQuery {

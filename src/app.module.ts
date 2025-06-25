@@ -9,6 +9,9 @@ import { SourceGeneratorModule } from './source-generator/source-generator.modul
 import { AiModule } from './ai/ai.module';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
+import { RecommendationModule } from './recommendation/recommendation.module';
+import { BullBoardModule } from '@bull-board/nestjs';
+import { ExpressAdapter } from '@bull-board/express';
 
 @Module({
   imports: [
@@ -26,6 +29,11 @@ import { UserModule } from './user/user.module';
     AiModule,
     AuthModule,
     UserModule,
+    RecommendationModule,
+    BullBoardModule.forRoot({
+      route: '/admin/queues',
+      adapter: ExpressAdapter, // Use ExpressAdapter for the root
+    }),
   ],
   controllers: [AppController],
   providers: [AppService],

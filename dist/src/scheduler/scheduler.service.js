@@ -8,25 +8,63 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 var SchedulerService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SchedulerService = void 0;
 const common_1 = require("@nestjs/common");
-const schedule_1 = require("@nestjs/schedule");
+const bull_1 = require("@nestjs/bull");
 let SchedulerService = SchedulerService_1 = class SchedulerService {
+    queue;
     logger = new common_1.Logger(SchedulerService_1.name);
-    handleCron() {
-        this.logger.debug('Called every minute by SchedulerService');
+    constructor(queue) {
+        this.queue = queue;
+    }
+    async isDuplicateJob(jobName, jobData) {
+        const [waitingJobs, activeJobs] = await Promise.all([
+            this.queue.getWaiting(),
+            this.queue.getActive()
+        ]);
+        const allJobs = [...waitingJobs, ...activeJobs];
+        const duplicateJob = allJobs.find(job => {
+            return job.name === jobName &&
+                JSON.stringify(job.data) === JSON.stringify(jobData);
+        });
+        return !!duplicateJob;
+    }
+    async courseSeed(jobTitles) {
+        console.log("Checking for duplicate course seed job...");
+        const jobData = { jobTitles };
+        const isDuplicate = await this.isDuplicateJob('generateCourse', jobData);
+        if (isDuplicate) {
+            this.logger.warn('Duplicate course seed job detected. Skipping...');
+            return { skipped: true, reason: 'Duplicate job already exists' };
+        }
+        console.log("Adding course seed job to queue...");
+        const job = await this.queue.add('generateCourse', jobData);
+        console.log(`Course seed job added with ID: ${job.id}`);
+        return { jobId: job.id, skipped: false };
+    }
+    async trendingCourseSeed() {
+        console.log("Checking for duplicate trending course job...");
+        const jobData = {};
+        const isDuplicate = await this.isDuplicateJob('generateTrendingCourse', jobData);
+        if (isDuplicate) {
+            this.logger.warn('Duplicate trending course job detected. Skipping...');
+            return { skipped: true, reason: 'Duplicate job already exists' };
+        }
+        console.log("Adding trending course job to queue...");
+        const job = await this.queue.add('generateTrendingCourse', jobData);
+        console.log(`Trending course job added with ID: ${job.id}`);
+        return { jobId: job.id, skipped: false };
     }
 };
 exports.SchedulerService = SchedulerService;
-__decorate([
-    (0, schedule_1.Cron)(schedule_1.CronExpression.EVERY_MINUTE),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], SchedulerService.prototype, "handleCron", null);
 exports.SchedulerService = SchedulerService = SchedulerService_1 = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, bull_1.InjectQueue)('background-jobs')),
+    __metadata("design:paramtypes", [Object])
 ], SchedulerService);
 //# sourceMappingURL=scheduler.service.js.map

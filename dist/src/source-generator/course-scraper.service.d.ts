@@ -5,6 +5,7 @@ export interface CourseResult {
     dataType: string;
     skill: string;
     query: string;
+    jobTitle?: string;
 }
 export interface SearchQuery {
     skill: string;
@@ -17,4 +18,5 @@ export declare class CourseScraperService {
     private scrapeDuckDuckGo;
     private determineDataType;
     private cleanUrl;
+    private scrapeFallback;
 }

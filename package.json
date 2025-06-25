@@ -5,6 +5,10 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -20,7 +24,14 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@bull-board/api": "^6.10.1",
+    "@bull-board/express": "^6.10.1",
+    "@bull-board/nestjs": "^6.10.1",
+    "@bull-board/ui": "^6.10.1",
+    "@chroma-core/default-embed": "^0.1.8",
+    "@langchain/community": "^0.3.47",
     "@langchain/google-genai": "^0.2.13",
+    "@nestjs/bull": "^11.0.2",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
@@ -32,9 +43,12 @@
     "@nestjs/swagger": "^11.2.0",
     "axios": "^1.10.0",
     "bcryptjs": "^3.0.2",
+    "bull": "^4.16.5",
     "cheerio": "^1.1.0",
+    "chromadb": "^3.0.4",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "ioredis": "^5.6.1",
     "langchain": "^0.3.29",
     "mongoose": "^8.16.0",
     "passport": "^0.7.0",
@@ -54,7 +68,7 @@
     "@swc/core": "^1.10.7",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
-    "@types/node": "^22.10.7",
+    "@types/node": "^22.15.32",
     "@types/supertest": "^6.0.2",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
