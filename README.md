@@ -2,6 +2,9 @@
 
 A NestJS-based API that provides intelligent course recommendations based on job titles and skills using AI-powered analysis and web scraping.
 
+## Api Doc url:
+http://localhost:3000/api
+
 ## 🏗️ Architecture
 
 The project consists of several modular services:
@@ -154,3 +157,53 @@ src/
 - **Queue Status**: Monitor Bull dashboard
 - **Vector Store**: Check Chroma collection status
 - **Logs**: Use custom colored logger service
+
+## 🚀 Future Improvements
+
+### Data Management & Performance
+
+#### Vector Store Expiry System
+- **Add expiry time for vector store data** to prevent stale recommendations
+- Implement automatic cleanup of old course data
+- Set configurable TTL (Time To Live) for different types of data
+- Ensure fresh and relevant course recommendations
+
+#### Caching Layer
+- **Implement caching for recommendations** to improve response times
+- **Options under consideration:**
+  - **User-specific caching**: Cache recommendations per user for personalized results
+  - **Global caching**: Cache recommendations for all users (faster, less personalized)
+- Cache course analysis results to avoid repeated AI processing
+- Redis-based caching with configurable expiration
+
+### Data Sources Enhancement
+
+#### API Integration Service
+- ** Update `data-from-api-service`** with direct course aggregator integrations:
+  - **Udemy API integration** for direct course data
+  - **Custom course fetching APIs** for specialized content
+  - **Course aggregator APIs** (Coursera, edX, etc.)
+- Implement rate limiting and API quota management
+- Add fallback mechanisms when APIs are unavailable
+- Support for multiple data sources with priority ranking
+
+### User Experience & Personalization
+
+#### Personalized Course Recommendations
+- **New endpoint**: `POST /recommendation/personalized`
+- **Input**: User details + job title
+- **Features**:
+  - Consider user's learning history
+  - Factor in user's skill level (beginner, intermediate, advanced)
+  - Account for user's preferred learning style (video, text, interactive)
+  - Include user's time availability and learning pace
+  - Provide personalized course bundles based on user profile
+
+#### User Profile Management
+- Store user preferences and learning history
+- Track completed courses and skill progression
+- Implement recommendation feedback loop
+- Allow users to rate and review recommendations
+
+#### Security & Reliability
+- Add rate limiting for API endpoints
