@@ -4,6 +4,7 @@ import { CourseScraperService, CourseResult } from '../source-generator/course-s
 import { Document } from '@langchain/core/documents';
 import { AIBaseService } from 'src/ai/services/ai-base.service';
 import { CourseGenerationService } from 'src/ai/services/course-discovery.service';
+import { CustomLoggerService } from '../common/custom-logger.service';
 
 export interface CourseDiscoveryResult {
   summaries: string[][];
@@ -20,6 +21,8 @@ export interface CourseRecommendationResult {
 
 @Injectable()
 export class RecommendationService {
+  private readonly logger = new CustomLoggerService(RecommendationService.name);
+
   constructor(
     private aiBaseService: AIBaseService,
     private jobSkillsAnalyzer: JobSkillsAnalyzerService,
@@ -42,7 +45,7 @@ export class RecommendationService {
   async testNew(jobTitles: string[]): Promise<JobSkillsResult[]> {
     await this.aiBaseService.ensureVectorStoreReady();
     const jobAnalysis: JobSkillsResult[] = await this.jobSkillsAnalyzer.analyzeMultipleJobSkills(jobTitles);
-    console.log(jobAnalysis);
+    this.logger.debug(`Job analysis results: ${JSON.stringify(jobAnalysis, null, 2)}`);
     return jobAnalysis;
   }
 
@@ -63,14 +66,14 @@ export class RecommendationService {
     } catch (error) {
         results.push({ courses: [], summaries: [[]]});
     }
-    console.log(results);
+    this.logger.info(`Trending vector store seeding results: ${JSON.stringify(results, null, 2)}`);
     return results;
   }
 
   async seedVectorStore(jobTitles: string[]): Promise<CourseDiscoveryResult[]> {
     await this.aiBaseService.ensureVectorStoreReady();
     const results: CourseDiscoveryResult[] = [];
-    console.log('Starting seeding')
+    this.logger.info('Starting seeding')
     try {
         const jobAnalysis: JobSkillsResult[] = await this.jobSkillsAnalyzer.analyzeMultipleJobSkills(jobTitles);
         const courses: CourseResult[][] = await Promise.all(jobAnalysis.map(async (analysis) => await this.courseScraper.scrapeCourses(analysis.queries)));
@@ -85,11 +88,11 @@ export class RecommendationService {
     } catch (error) {
         results.push({ courses: [], summaries: [[]]});
     }
-    console.log(results);
+    this.logger.info(`Vector store seeding results: ${JSON.stringify(results, null, 2)}`);
     return results;
   }
 
-  async fullProcess(jobTitle: string, limit: number = 5): Promise<CourseRecommendationResult> {
+  async halfProcess(jobTitle: string, limit: number = 5): Promise<CourseRecommendationResult> {
     await this.aiBaseService.ensureVectorStoreReady();
     try {
       const jobAnalysis: JobSkillsResult = await this.jobSkillsAnalyzer.analyzeJobSkills(jobTitle);
@@ -123,16 +126,16 @@ export class RecommendationService {
     await this.aiBaseService.ensureVectorStoreReady();
     const vectorStore = this.aiBaseService.getVectorStore();
     const results = await vectorStore.similaritySearch(query, limit);
-    console.log(results, '00000000')
+    this.logger.debug(`Similar courses search results: ${JSON.stringify(results, null, 2)}`);
     return results.map(doc => doc.metadata as CourseResult);
   }
-
 
   async getAllVectorStoreDocuments(): Promise<any[]> {
     await this.aiBaseService.ensureVectorStoreReady();
     const collection = this.aiBaseService.getCollection();
     const rawDocs = await collection.get();
-    console.log(rawDocs.documents, rawDocs.metadatas);
+    this.logger.debug(`Vector store documents: ${JSON.stringify(rawDocs.documents, null, 2)}`);
+    this.logger.debug(`Vector store metadatas: ${JSON.stringify(rawDocs.metadatas, null, 2)}`);
     return rawDocs.documents;
   }
 }

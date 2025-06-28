@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class LangchainService {
-  async runChain(input: string): Promise<string> {
-    // Placeholder for LangChain logic
-    return `LangChain processed: ${input}`;
+  // Remove the runChain method if not used elsewhere
+
+  async testPrompt(prompt: string): Promise<string> {
+    // Replace this with real LangChain logic if available
+    return `LangChain received: ${prompt}`;
   }
 } 

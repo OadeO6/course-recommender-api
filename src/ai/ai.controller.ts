@@ -9,8 +9,8 @@ export class AiController {
 
   @Get('analyze-job/:jobTitle')
   @ApiOperation({ summary: 'Analyze job skills and generate search queries' })
-  @ApiResponse({ status: 200, description: 'Job analysis completed' })
+  @ApiResponse({ status: 200, description: 'Job analysis completed (debug)' })
   async analyzeJob(@Param('jobTitle') jobTitle: string) {
-    return this.jobSkillsAnalyzerService.analyzeJobSkills(jobTitle);
+    return this.jobSkillsAnalyzerService.analyzeMultipleJobSkills([jobTitle]);
   }
-} 
+}

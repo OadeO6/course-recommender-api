@@ -1,13 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { AIBaseService } from './ai-base.service';
 import { PromptTemplate } from '@langchain/core/prompts';
 import { RunnableSequence } from '@langchain/core/runnables';
 import { StructuredOutputParser } from '@langchain/core/output_parsers';
 import { z } from 'zod';
+import { CustomLoggerService } from '../../common/custom-logger.service';
 
 @Injectable()
 export class CourseGenerationService {
-  private readonly logger = new Logger(CourseGenerationService.name);
+  private readonly logger = new CustomLoggerService(CourseGenerationService.name);
 
   private readonly outputSchema = z.object({
     badTittle: z.boolean(),
@@ -20,7 +21,7 @@ export class CourseGenerationService {
           z.object({
             title: z.string(),
             url: z.string().url(),
-            type: z.enum(['Blog', 'Video', 'Course', 'Doc']),
+            type: z.enum(['Blog', 'Video', 'Course', 'Doc', 'PDF']),
             snippet: z.string(),
           })
         ),
@@ -37,6 +38,7 @@ export class CourseGenerationService {
       const outputParser = StructuredOutputParser.fromZodSchema(this.outputSchema);
 
       // TODO: fix false negative for badRequest and false positive for successful
+// dont proceed if you are unnable to form a conrensive set of courses required for the job title
       const prompt = PromptTemplate.fromTemplate(`
 You are an expert career coach creating comprehensive course bundles for a {jobTitle} position.
 
@@ -59,7 +61,6 @@ If there are fewer than 6 relevant courses OR the courses don't adequately cover
   "successful": false,
   "data": []
 }}
-dont proceed if you are unnable to form a conrensive set of courses required for the job title
 
 If there's sufficient data, create 3-5 different learning bundles for different learning preferences:
 1. Blog-Focused Track - For readers who prefer articles and written content
@@ -91,9 +92,9 @@ IMPORTANT RULES:
       ]);
 
       const result = await chain.invoke({ jobTitle });
-      console.log('result', result);
+      this.logger.debug(`Generated result for ${jobTitle}: ${JSON.stringify(result, null, 2)}`);
 
-      this.logger.log(`Generated courses for ${jobTitle}: ${result.successful ? 'Success' : 'Failed'}`);
+      this.logger.info(`Generated courses for ${jobTitle}: ${result.successful ? 'Success' : 'Failed'}`);
       return result;
 
     } catch (error) {
@@ -106,3 +107,4 @@ IMPORTANT RULES:
     }
   }
 }
+ 

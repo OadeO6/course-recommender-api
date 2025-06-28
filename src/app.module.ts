@@ -12,6 +12,7 @@ import { UserModule } from './user/user.module';
 import { RecommendationModule } from './recommendation/recommendation.module';
 import { BullBoardModule } from '@bull-board/nestjs';
 import { ExpressAdapter } from '@bull-board/express';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ExpressAdapter } from '@bull-board/express';
       inject: [ConfigService],
     }),
     ScheduleModule.forRoot(),
+    CommonModule,
     SchedulerModule,
     SourceGeneratorModule,
     AiModule,

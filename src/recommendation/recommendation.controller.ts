@@ -27,16 +27,28 @@ export class RecommendationController {
     return this.recommendationService.seedVectorStore(body.jobTitles);
   }
 
-  @Post('full-process')
-  @ApiOperation({ summary: 'Complete process: analyze job, scrape courses, and return results' })
+  @Post('seed-vector-store-trending')
+  @ApiOperation({ summary: 'Seed vector store with courses for multiple random trending job titles in the background' })
+  @ApiResponse({ status: 200, description: 'Successfully scheduled a background seeding job'})
+  async seedVectorStoreTrending() {
+    try {
+      await this.schedulerService.trendingCourseSeed();
+      return {"message": 'Successfully scheduled a background seeding job'}
+    } catch {
+      throw new HttpException('Unexpected error', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Post('half-process')
+  @ApiOperation({ summary: 'Complete process: analyze job, scrape courses, and return scraping results`' })
   @ApiBody({ type: FullProcessDto })
-  @ApiResponse({ status: 200, description: 'Full process completed successfully', type: CourseRecommendationResultDto })
-  async fullProcess(@Body() body: FullProcessDto) {
-    return this.recommendationService.fullProcess(body.jobTitle, body.limit || 5);
+  @ApiResponse({ status: 200, description: 'Half process completed successfully', type: CourseRecommendationResultDto })
+  async halfProcess(@Body() body: FullProcessDto) {
+    return this.recommendationService.halfProcess(body.jobTitle, body.limit || 5);
   }
 
   @Post('vector-store-only')
-  @ApiOperation({ summary: 'Get recommendations from vector store only - returns error if no data exists' })
+  @ApiOperation({ summary: 'Get recommendations using the vector store as RAG data sourse - returns error if no data exists' })
   @ApiBody({ type: VectorStoreOnlyDto })
   @ApiResponse({ status: 200, description: 'Recommendations retrieved from vector store', type: CourseRecommendationResultDto })
   @ApiResponse({ status: 404, description: 'No relevant data found in vector store for this job title' })
@@ -47,7 +59,7 @@ export class RecommendationController {
     }
     if (!res.successful) {
       await this.schedulerService.courseSeed([body.jobTitle]);
-      throw new HttpException('Pls Try again few seconds later', HttpStatus.NOT_FOUND);
+      throw new HttpException('Pls Try again in a minute', HttpStatus.NOT_FOUND);
     }
     return res.data;
   }
@@ -59,7 +71,7 @@ export class RecommendationController {
   }
 
   @Get('vector-store/similar')
-  @ApiOperation({ summary: 'Get N most similar documents for a string' })
+  @ApiOperation({ summary: 'Get N most similar documents for a string (debug)' })
   async getNSimilarDocs(@Query('query') query: string, @Query('n') n: string) {
     const num = n ? parseInt(n, 10) : 5;
     if (!query) {
@@ -69,7 +81,7 @@ export class RecommendationController {
   }
 
   @Post('test')
-  @ApiOperation({ summary: 'Seed vector store with courses for multiple job titles' })
+  @ApiOperation({ summary: 'Seed vector store with courses for multiple job titles (debug)' })
   @ApiBody({ type: SeedVectorStoreDto })
   @ApiResponse({ status: 200, description: 'Vector store seeded successfully', type: [CourseDiscoveryResultDto] })
   async testVectorStore(@Body() body: SeedVectorStoreDto) {

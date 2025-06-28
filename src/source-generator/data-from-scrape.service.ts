@@ -4,9 +4,5 @@ import * as cheerio from 'cheerio';
 
 @Injectable()
 export class DataFromScrapeService {
-  async getExampleTitle(): Promise<string> {
-    const { data } = await axios.get('https://example.com');
-    const $ = cheerio.load(data);
-    return $('title').text();
-  }
+  // Remove the getExampleTitle method if not used elsewhere
 } 

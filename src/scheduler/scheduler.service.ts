@@ -1,10 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue, Job } from 'bull';
+import { CustomLoggerService } from '../common/custom-logger.service';
 
 @Injectable()
 export class SchedulerService {
-  private readonly logger = new Logger(SchedulerService.name);
+  private readonly logger = new CustomLoggerService(SchedulerService.name);
 
   constructor(@InjectQueue('background-jobs') private queue: Queue) {}
 
@@ -27,7 +28,7 @@ export class SchedulerService {
   }
 
   async courseSeed(jobTitles: string[]) {
-    console.log("Checking for duplicate course seed job...");
+    this.logger.info("Checking for duplicate course seed job...");
 
     const jobData = { jobTitles };
     const isDuplicate = await this.isDuplicateJob('generateCourse', jobData);
@@ -37,15 +38,15 @@ export class SchedulerService {
       return { skipped: true, reason: 'Duplicate job already exists' };
     }
 
-    console.log("Adding course seed job to queue...");
+    this.logger.info("Adding course seed job to queue...");
     const job = await this.queue.add('generateCourse', jobData);
-    console.log(`Course seed job added with ID: ${job.id}`);
+    this.logger.info(`Course seed job added with ID: ${job.id}`);
 
     return { jobId: job.id, skipped: false };
   }
 
   async trendingCourseSeed() {
-    console.log("Checking for duplicate trending course job...");
+    this.logger.info("Checking for duplicate trending course job...");
 
     const jobData = {}; // No data for trending course job
     const isDuplicate = await this.isDuplicateJob('generateTrendingCourse', jobData);
@@ -55,9 +56,9 @@ export class SchedulerService {
       return { skipped: true, reason: 'Duplicate job already exists' };
     }
 
-    console.log("Adding trending course job to queue...");
+    this.logger.info("Adding trending course job to queue...");
     const job = await this.queue.add('generateTrendingCourse', jobData);
-    console.log(`Trending course job added with ID: ${job.id}`);
+    this.logger.info(`Trending course job added with ID: ${job.id}`);
 
     return { jobId: job.id, skipped: false };
   }

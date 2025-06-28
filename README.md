@@ -1,98 +1,156 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Course Recommendation API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A NestJS-based API that provides intelligent course recommendations based on job titles and skills using AI-powered analysis and web scraping.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 🏗️ Architecture
 
-## Description
+The project consists of several modular services:
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **AI Module**: LangChain integration for job skills analysis and query generation
+- **Source Generator**: Web scraping service for course discovery
+- **Scheduler**: Background job processing for large-scale operations
+- **Recommendation**: Main service orchestrating the recommendation process
 
-## Project setup
+## 🛠️ Tech Stack
 
-```bash
-$ npm install
-```
+- **Framework**: NestJS
+- **AI/ML**: LangChain, Google Generative AI (Gemini)
+- **Database**: MongoDB (user auth), Chroma (vector store)
+- **Queue System**: Bull with Redis
+- **Web Scraping**: DuckDuckGo API
+- **Containerization**: Docker & Docker Compose
 
-## Compile and run the project
+## 📋 Prerequisites
+
+- Node.js (v18+)
+- Docker & Docker Compose
+- Google API Key (for Gemini AI)
+- MongoDB (optional, for user authentication)
+
+## 🚀 Quick Start
+
+### 1. Clone and Install
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+git clone <repository-url>
+cd course-recommender-api
+npm install
 ```
 
-## Run tests
+### 2. Environment Setup
+
+Create a `.env` file, copy and update content of .env.example file into it:
+
+
+### 3. Run with Docker
 
 ```bash
-# unit tests
-$ npm run test
+# Start all services
+docker-compose up -d
 
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+# View logs
+docker-compose logs -f
 ```
 
-## Deployment
+## 📚 API Endpoints
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+### Basic Flow
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+The typical workflow for getting course recommendations:
 
+1. **Seed Vector Store** → `POST /recommendation/seed-vector-store`
+2. **Generate Recommendations** → `POST /recommendation/vector-store-only`
+
+### Course Recommendations
+
+#### Core Endpoints
+- `POST /recommendation/seed-vector-store` - **First step**: Populate vector store with job analysis and scraped courses
+  - Use this to initialize the system with job data
+  - Analyzes job titles, extracts skills, generates queries, scrapes courses
+  - Stores everything in the vector database for later retrieval
+
+- `POST /recommendation/seed-vector-store-trending` - ** Runs a background job that opulate vector store with job analysis and scraped courses
+  - Use this to initialize the system with job data for random trending job titles
+  - Analyzes job titles, extracts skills, generates queries, scrapes courses
+  - Stores everything in the vector database for later retrieval
+
+- `POST /recommendation/vector-store-only` - **Second step**: Generate course recommendations from existing vector store
+  - Use this after seeding to get recommendations
+  - Searches the vector store for relevant courses
+  - Returns structured course bundles for different learning preferences
+  - **Note**: If no data exists, it automatically schedules a background job and asks you to try again in a minute
+
+#### Additional Endpoints
+- `POST /recommendation/half-process` - Half of the  process in one request (job analysis + scraping)
+  - Use when you want everything done in a single API call
+  - Good for testing scraping results that is suppose to be stored in the vector store.
+
+- `GET /recommendation/vector-store/similar` - Search for similar courses using a query string
+  - Use for checking the vectore store for data similar to a paticular job title
+  - Query parameters: `query` (required), `n` (optional, default: 5)
+
+- `GET /recommendation/vector-store/all` - Get all documents in the vector store (debug endpoint)
+
+- `POST /recommendation/test` - Test endpoint for job analysis only (debug)
+
+### Job Analysis
+
+- `GET /ai/analyze-job/:jobTitle` - Analyze a single job title and extract skills
+  - Use for individual job analysis without scraping
+  - Returns job skills analysis and generated queries
+
+### Monitoring
+
+- `GET /test` - Health check endpoint
+- `GET /langchain-test` - Test LangChain AI integration
+- `http://localhost:3000/admin/queues/queue/background-jobs` - **Bull Dashboard** for monitoring background jobs
+  - Monitor job status, progress, and failures
+  - View job history and retry failed jobs
+  - Access this URL in your browser when the app is running
+
+## 🧪 Test Endpoints
+
+### Health Check
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+GET /test
+# Returns: "API is working"
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### LangChain Test
+```bash
+GET /langchain-test
+# Returns: "LangChain received: Is LangChain working?"
+```
+### Project Structure
 
-## Resources
+```
+src/
+├── ai/                    # AI services (LangChain, job analysis)
+├── common/               # Shared utilities (logger, DTOs)
+├── recommendation/       # Main recommendation service
+├── scheduler/           # Background job processing
+├── source-generator/    # Web scraping services
+└── auth/               # User authentication
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+### Key Services
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+- **JobSkillsAnalyzerService**: Extracts skills from job titles using AI
+- **CourseScraperService**: Scrapes course content from web sources
+- **RecommendationService**: Orchestrates the recommendation process
+- **SchedulerService**: Manages background job processing
 
-## Support
+### Services
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+- **API**: NestJS application (port 3000)
+- **MongoDB**: User authentication database (port 27017)
+- **Chroma**: Vector store for course embeddings (port 8000)
+- **Redis**: Queue system for background jobs (port 6379)
 
-## Stay in touch
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## 📊 Monitoring
 
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- **Health Check**: `GET /test`
+- **Queue Status**: Monitor Bull dashboard
+- **Vector Store**: Check Chroma collection status
+- **Logs**: Use custom colored logger service

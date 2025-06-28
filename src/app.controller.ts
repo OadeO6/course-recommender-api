@@ -16,18 +16,8 @@ export class AppController {
     return 'API is working';
   }
 
-  @Get('scrape')
-  async scrape(): Promise<string> {
-    return this.sourceGeneratorService.getExampleTitle();
-  }
-
-  @Get('ai')
-  async ai(): Promise<string> {
-    return this.langchainService.runChain('test input');
-  }
-
-  @Get()
-  getHello(): string {
-    return this.appService.getHello();
+  @Get('langchain-test')
+  async langchainTest(): Promise<string> {
+    return this.langchainService.testPrompt('Is LangChain working?');
   }
 }

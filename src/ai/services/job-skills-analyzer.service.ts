@@ -4,6 +4,7 @@ import { PromptTemplate } from '@langchain/core/prompts';
 import { RunnableSequence } from '@langchain/core/runnables';
 import { z } from 'zod';
 import { StructuredOutputParser } from '@langchain/core/output_parsers';
+import { CustomLoggerService } from '../../common/custom-logger.service';
 
 export interface JobSkillsResult {
   jobTitle: string;
@@ -20,6 +21,7 @@ export interface SearchQuery {
 
 @Injectable()
 export class JobSkillsAnalyzerService {
+  private readonly logger = new CustomLoggerService(JobSkillsAnalyzerService.name);
   private skillsChain: RunnableSequence;
   private queryChain: RunnableSequence;
   llm: any;
@@ -70,16 +72,17 @@ export class JobSkillsAnalyzerService {
     ]);
 
     // Query generation chain with structured output
+    // TODO: Work on the prompt to generate a more creative response.
     const queryPrompt = PromptTemplate.fromTemplate(`
       As an expert SEO and web scraper, generate optimized search queries for the job title: {jobTitle} and skills: {skills}
       Create search queries using filetype: and site: filters. Each query should target one specific site or filetype.
       Generate multiple queries like (but not limited to) these examples:
       - filetype:pdf "{jobTitle}" guide tutorial
       - site:dev.to "{jobTitle}" tutorial
-      - site:youtube.com "{skills}" tutorial
+      - site:youtube.com {skills} tutorial
       - site:coursera.org "{skills}" tutorial
       - site:coursera.org "{jobTitle}" course
-      - filetype:video "{jobTitle}" tutorial
+      - filetype:video [clouse like  advance guid to] {jobTitle} tutorial
       Use your expertise to choose the best sites based on the job. For example:
       - For a Python job: realpython.com
       - For a data science job: towardsdatascience.com
@@ -96,7 +99,7 @@ export class JobSkillsAnalyzerService {
   async analyzeJobSkills(jobTitle: string): Promise<JobSkillsResult> {
     try {
       // Extract skills using structured output
-      console.log('Analyzing job skills for:', jobTitle);
+      this.logger.info(`Analyzing job skills for: ${jobTitle}`);
       const skillsResult = await this.skillsChain.invoke({
         jobTitle,
         format_instructions: StructuredOutputParser.fromZodSchema(this.skillsSchema).getFormatInstructions()
@@ -108,7 +111,7 @@ export class JobSkillsAnalyzerService {
       }
 
       const skills = skillsResult.results[0].skills;
-      console.log('Extracted skills:', skills);
+      this.logger.debug(`Extracted skills: ${JSON.stringify(skills, null, 2)}`);
 
       // Generate optimized queries using structured output
       const queryResult = await this.queryChain.invoke({
@@ -123,7 +126,7 @@ export class JobSkillsAnalyzerService {
       }
 
       const queries = queryResult.results[0].queries;
-      console.log('Generated queries:', queries);
+      this.logger.debug(`Generated queries: ${JSON.stringify(queries, null, 2)}`);
 
       return {
         jobTitle,
@@ -131,7 +134,7 @@ export class JobSkillsAnalyzerService {
         queries,
       };
     } catch (error) {
-      console.error('AI analysis failed:', error);
+      this.logger.error(`AI analysis failed: ${error.message}`, error.stack);
       // Fallback to basic implementation
       return this.fallbackAnalysis(jobTitle);
     }
@@ -143,7 +146,7 @@ export class JobSkillsAnalyzerService {
    */
   async analyzeTrendingJobSkills(): Promise<JobSkillsResult[]> {
     try {
-      console.log('Generating trending job titles and analyzing skills in single request...');
+      this.logger.info('Generating trending job titles and analyzing skills in single request...');
 
       // Create comprehensive schema for everything in one request
       const trendingJobsSchema = z.object({
@@ -178,15 +181,18 @@ export class JobSkillsAnalyzerService {
         Include a mix of entry to senior level positions.
 
         2. THEN: For EACH job title you generated:
-        - Extract 5-8 key technical skills required for that role
+        - Extract 6-9 key technical skills required for that role
         - Create optimized search queries using filetype: and site: filters
 
         Generate multiple query types for each job:
-        - filetype:pdf "[jobTitle]" guide tutorial
+        - filetype:pdf [jobTitle] guide tutorial
         - site:dev.to "[jobTitle]" tutorial
         - site:youtube.com "[skills]" tutorial
-        - site:coursera.org "[skills]" course
+        - site:coursera.org [skills] course
         - site:github.com "[skills]" projects
+        - filetype:video [clouse like  advance guide to] [jobTitle] tutorial
+
+        Try to ballance between resources like (blog, pdf, vedio) and  sites that offer standard course like udemy.com among others
 
         Use your expertise to choose the best sites based on each job type:
         - For Python jobs: realpython.com, python.org
@@ -208,7 +214,7 @@ export class JobSkillsAnalyzerService {
         format_instructions: trendingJobsParser.getFormatInstructions()
       });
 
-      console.log(`Single-request analysis completed for ${result.results.length} trending jobs`);
+      this.logger.info(`Single-request analysis completed for ${result.results.length} trending jobs`);
 
       // Transform to match our interface
       const jobSkillsResults: JobSkillsResult[] = result.results.map(item => ({
@@ -220,10 +226,10 @@ export class JobSkillsAnalyzerService {
       return jobSkillsResults;
 
     } catch (error) {
-      console.error('Single-request trending jobs analysis failed:', error);
+      this.logger.error(`Single-request trending jobs analysis failed: ${error.message}`, error.stack);
       // Fallback to predefined trending job titles with existing analysis
       const fallbackTrendingJobs = this.getFallbackTrendingJobs();
-      console.log('Using fallback trending jobs with bulk analysis:', fallbackTrendingJobs);
+      this.logger.debug(`Using fallback trending jobs with bulk analysis: ${JSON.stringify(fallbackTrendingJobs, null, 2)}`);
       return await this.analyzeMultipleJobSkills(fallbackTrendingJobs);
     }
   }
@@ -264,7 +270,7 @@ export class JobSkillsAnalyzerService {
    */
   async analyzeMultipleJobSkills(jobTitles: string[]): Promise<JobSkillsResult[]> {
     try {
-      console.log(`Starting bulk analysis for ${jobTitles.length} job titles in single request`);
+      this.logger.info(`Starting bulk analysis for ${jobTitles.length} job titles in single request`);
 
       // Use the same schemas as class properties for consistency
       const bulkSkillsParser = StructuredOutputParser.fromZodSchema(this.skillsSchema);
@@ -284,12 +290,17 @@ export class JobSkillsAnalyzerService {
         Job data: {jobData}
 
         For each job title, create search queries using filetype: and site: filters. Each query should target one specific site or filetype.
-        Generate multiple queries like (but not limited to) these examples:
+        Generate multiple queries like (but not limited to) these format:
         - filetype:pdf "[jobTitle]" guide tutorial
+        - site:dev.to [jobTitle] tutorial
         - site:dev.to "[jobTitle]" tutorial
         - site:youtube.com "[skills]" tutorial
         - site:coursera.org "[skills]" tutorial
+        - site:coursera.org [skills] tutorial
         - site:coursera.org "[jobTitle]" course
+        - filetype:video [clouse like  advance guide to] [jobTitle] tutorial
+
+        Try to ballance between resources like (blog, pdf, vedio) and  sites that offer standard course like udemy.com among others
 
         Use your expertise to choose the best sites based on the job. For example:
         - For Python jobs: realpython.com
@@ -310,7 +321,7 @@ export class JobSkillsAnalyzerService {
         format_instructions: bulkSkillsParser.getFormatInstructions()
       });
 
-      console.log('Bulk skills extraction completed:', skillsResult.results?.length || 0);
+      this.logger.debug(`Bulk skills extraction completed: ${skillsResult.results?.length || 0} results`);
 
       // Add safety check
       if (!skillsResult.results || skillsResult.results.length === 0) {
@@ -330,7 +341,7 @@ export class JobSkillsAnalyzerService {
         format_instructions: bulkQueryParser.getFormatInstructions()
       });
 
-      console.log('Bulk query generation completed:', queryResult.results?.length || 0);
+      this.logger.debug(`Bulk query generation completed: ${queryResult.results?.length || 0} results`);
 
       // Add safety check
       if (!queryResult.results) {
@@ -347,10 +358,11 @@ export class JobSkillsAnalyzerService {
         };
       });
 
-      console.log(`Bulk analysis completed successfully for ${results.length} job titles`);
+      this.logger.info(`Bulk analysis completed successfully for ${results.length} job titles`);
+      this.logger.debug(`results: ${JSON.stringify(results, null, 2)}`)
       return results;
     } catch (error) {
-      console.error('Bulk AI analysis failed:', error);
+      this.logger.error(`Bulk AI analysis failed: ${error.message}`, error.stack);
       // Complete fallback: analyze each job title individually using fallback methods
       return jobTitles.map(jobTitle => this.fallbackAnalysis(jobTitle));
     }

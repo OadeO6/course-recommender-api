@@ -4,9 +4,11 @@ import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 import { Chroma } from '@langchain/community/vectorstores/chroma';
 import { CourseResult } from 'src/source-generator/course-scraper.service';
 import { Document } from '@langchain/core/documents';
+import { CustomLoggerService } from '../../common/custom-logger.service';
 
 @Injectable()
 export class AIBaseService {
+  private readonly logger = new CustomLoggerService(AIBaseService.name);
   private llm: ChatGoogleGenerativeAI;
   private embeddings: GoogleGenerativeAIEmbeddings;
   private vectorStore: Chroma;
@@ -58,7 +60,7 @@ export class AIBaseService {
   }
 
 
-  async getNSimilarDocuments(query: string, n: number =20): Promise<CourseResult[]> {
+  async getNSimilarDocuments(query: string, n: number =50): Promise<CourseResult[]> {
     await this.ensureVectorStoreReady();
     try {
       const embeddings = this.getEmbeddings();
@@ -71,7 +73,7 @@ export class AIBaseService {
         include: ['documents', 'metadatas', 'distances']
       });
 
-      console.log(results);
+      this.logger.debug(`Similarity search results: ${JSON.stringify(results, null, 2)}`);
       const courseResults: CourseResult[] = [];
       if (results.metadatas[0]) {
         for (let i = 0; i < results.metadatas[0].length; i++) {
@@ -83,7 +85,7 @@ export class AIBaseService {
       }
       return courseResults;
     } catch (error) {
-      console.error('Error in getNSimilarDocuments:', error);
+      this.logger.error(`Error in getNSimilarDocuments: ${error.message}`, error.stack);
       throw new Error(`Similarity search failed: ${error.message}`);
     }
   }
