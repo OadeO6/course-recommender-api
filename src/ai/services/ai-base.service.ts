@@ -12,8 +12,9 @@ export class AIBaseService {
   private llm: ChatGoogleGenerativeAI;
   private embeddings: GoogleGenerativeAIEmbeddings;
   private vectorStore: Chroma;
-  private collection: any;
-  private retriever: any;
+  private vectorStoreCourses: Chroma;
+  private collectionOthers: any;
+  private collectionCourses: any;
   private isVectorStoreReady = false;
 
   constructor() {
@@ -37,52 +38,90 @@ export class AIBaseService {
     });
   }
 
+// NOTE: point 1
   buildCourseSummary(course: CourseResult): string {
     let summary = `Title: ${course.title}\n`;
     summary += `URL: ${course.url}\n`;
-    summary += `Skill: ${course.skill}\n`;
+    summary += `Skills: ${course.skills?.join(', ') ?? ''}\n`;
     summary += `Data Type: ${course.dataType}\n`;
     summary += `Query: ${course.query}\n`;
-    summary += `Snippet: ${course.snippet}`;
+    summary += `Discription: ${course.snippet}\n`;
+    summary += `Difficulty: ${course.difficulty}\n`;
+    summary += `Rating: ${course.rating}\n`;
+    summary += `Reviews: ${course.reviews}\n`;
     return summary;
   }
 
-  async addDocuments(courses: CourseResult[], jobTitle: string) {
+  async addDocuments(courses: CourseResult[], jobTitle: string, altStore: boolean = false) {
     await this.ensureVectorStoreReady();
-    const vectorStore = this.getVectorStore();
+    const vectorStore = (altStore ? this.vectorStoreCourses : this.vectorStore);
 
     await vectorStore.addDocuments(
-      courses.map(course => new Document({
-        pageContent: this.buildCourseSummary(course),
-        metadata: { ...course, jobTitle }
-      }))
+      courses.map(
+        (course) =>
+          new Document({
+            pageContent: this.buildCourseSummary(course),
+            metadata: {
+              title: course.title,
+              url: course.url,
+              image: course.image ?? '',
+              snippet: course.snippet ?? '',
+              dataType: course.dataType ?? '',
+              query: course.query,
+              rating: course.rating ?? '',
+              reviews: course.reviews ?? '',
+              difficulty: course.difficulty ?? '',
+              skills: course.skills?.join(', ') ?? '',
+              jobTitle,
+            },
+          }),
+      ),
     );
   }
 
 
-  async getNSimilarDocuments(query: string, n: number =50): Promise<CourseResult[]> {
+
+  async getNSimilarDocuments(query: string, n: number = 50): Promise<CourseResult[]> {
     await this.ensureVectorStoreReady();
+
     try {
       const embeddings = this.getEmbeddings();
-      const collection = this.getCollection();
+      const [collection1, collection2] = this.getCollections();
 
       const embedding = await embeddings.embedQuery(query);
-      const results = await collection.query({
-        queryEmbeddings: [embedding],
-        nResults: n,
-        include: ['documents', 'metadatas', 'distances']
-      });
 
-      this.logger.debug(`Similarity search results: ${JSON.stringify(results, null, 2)}`);
+      // Search both collections
+      const [res1, res2] = await Promise.all([
+        collection1.query({
+          queryEmbeddings: [embedding],
+          nResults: n,
+          include: ['documents', 'metadatas', 'distances'],
+        }),
+        collection2.query({
+          queryEmbeddings: [embedding],
+          nResults: Math.floor(n / 2), // or any other logic
+          include: ['documents', 'metadatas', 'distances'],
+        }),
+      ]);
+
+      // Merge the fields manually
+      const combined = {
+        documents: [...(res1.documents ?? []), ...(res2.documents ?? [])],
+        metadatas: [...(res1.metadatas ?? []), ...(res2.metadatas ?? [])],
+        distances: [...(res1.distances ?? []), ...(res2.distances ?? [])],
+      };
+
+      // Convert metadata to CourseResult[]
       const courseResults: CourseResult[] = [];
-      if (results.metadatas[0]) {
-        for (let i = 0; i < results.metadatas[0].length; i++) {
-          const metadata = results.metadatas[0][i];
-          if (metadata) {
-            courseResults.push(metadata as CourseResult);
+
+      for (const metaArray of combined.metadatas) {
+        for (const meta of metaArray) {
+          if (meta) {
+            courseResults.push(meta as CourseResult);
           }
         }
       }
+
       return courseResults;
     } catch (error) {
       this.logger.error(`Error in getNSimilarDocuments: ${error.message}`, error.stack);
@@ -90,25 +129,25 @@ export class AIBaseService {
     }
   }
 
+
   private async initVectorStore() {
-    this.vectorStore = await Chroma.fromExistingCollection(
+    this.vectorStoreCourses = await Chroma.fromExistingCollection(
       this.embeddings,
       {
         collectionName: 'courses',
         url: process.env.CHROMA_URL || 'http://localhost:8000',
       }
     );
-    this.collection = (this.vectorStore as any).collection;
+    this.vectorStore = await Chroma.fromExistingCollection(
+      this.embeddings,
+      {
+        collectionName: 'others',
+        url: process.env.CHROMA_URL || 'http://localhost:8000',
+      }
+    );
+    this.collectionOthers = (this.vectorStore as any).collection;
+    this.collectionCourses = (this.vectorStoreCourses as any).collection;
     this.isVectorStoreReady = true;
-
-    this.retriever = this.vectorStore.asRetriever({
-      k: 20, // Number of documents to retrieve
-      searchType: 'similarity',
-    });
-  }
-
-  getRetriever(): any {
-    return this.retriever;
   }
 
   getLLM(): ChatGoogleGenerativeAI {
@@ -119,12 +158,8 @@ export class AIBaseService {
     return this.embeddings;
   }
 
-  getVectorStore(): Chroma {
-    return this.vectorStore;
-  }
-
-  getCollection(): any {
-    return this.collection;
+  getCollections(): any {
+    return [this.collectionOthers, this.collectionCourses];
   }
 
   async ensureVectorStoreReady(): Promise<void> {

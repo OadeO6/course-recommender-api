@@ -12,19 +12,19 @@ export class SourceGeneratorController {
   @ApiBody({ type: TestScraperDto })
   async testScraper(@Body() body: TestScraperDto) {
     const searchQuery = {
-      skill: body.skill,
+      skills: body.skills,
       type: body.platform,
       query: body.query,
     };
-    
+
     const results = await this.courseScraper.scrapeCourses([searchQuery]);
-    
+
     return {
       query: body.query,
       platform: body.platform,
-      skill: body.skill,
+      skills: body.skills,
       results,
       totalResults: results.length,
     };
   }
-} 
+}

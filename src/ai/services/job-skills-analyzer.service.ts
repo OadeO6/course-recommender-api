@@ -13,7 +13,7 @@ export interface JobSkillsResult {
 }
 
 export interface SearchQuery {
-  skill: string;
+  skills: string[];
   type: 'pdf' | 'doc' | 'blog' | 'video' | 'course';
   query: string;
   targetSite?: string;
@@ -38,7 +38,7 @@ export class JobSkillsAnalyzerService {
     results: z.array(z.object({
       jobTitle: z.string(),
       queries: z.array(z.object({
-        skill: z.string(),
+        skills: z.array(z.string()),
         type: z.enum(['pdf', 'doc', 'blog', 'video', 'course']),
         query: z.string(),
         targetSite: z.string().optional()
@@ -154,7 +154,7 @@ export class JobSkillsAnalyzerService {
           jobTitle: z.string(),
           skills: z.array(z.string()),
           queries: z.array(z.object({
-            skill: z.string(),
+            skills: z.array(z.string()),
             type: z.enum(['pdf', 'doc', 'blog', 'video', 'course']),
             query: z.string(),
             targetSite: z.string().optional()
@@ -373,20 +373,20 @@ export class JobSkillsAnalyzerService {
 
     // Job-focused queries
     queries.push({
-      skill: 'General',
+      skills: ['General'],
       type: 'pdf',
       query: `filetype:pdf "${jobTitle}" guide tutorial`,
     });
 
     queries.push({
-      skill: 'General',
+      skills: ['General'],
       type: 'video',
       query: `site:youtube.com "${jobTitle}" tutorial`,
       targetSite: 'youtube.com',
     });
 
     queries.push({
-      skill: 'General',
+      skills: ['General'],
       type: 'blog',
       query: `site:dev.to "${jobTitle}" tutorial`,
       targetSite: 'dev.to',
@@ -395,14 +395,14 @@ export class JobSkillsAnalyzerService {
     // Skill-specific queries
     skills.forEach(skill => {
       queries.push({
-        skill,
+        skills,
         type: 'blog',
         query: `site:dev.to "${skill}" tutorial`,
         targetSite: 'dev.to',
       });
 
       queries.push({
-        skill,
+        skills,
         type: 'video',
         query: `site:youtube.com "${skill}" tutorial`,
         targetSite: 'youtube.com',

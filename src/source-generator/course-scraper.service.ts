@@ -6,15 +6,19 @@ import { CustomLoggerService } from '../common/custom-logger.service';
 export interface CourseResult {
   title: string;
   url: string;
-  snippet: string;
-  dataType: string;
-  skill: string;
+  image?: string;
+  snippet?: string;
+  dataType?: string;
+  skills: string[];
   query: string;
   jobTitle?: string;
+  rating?: string;
+  reviews?: string;
+  difficulty?: string;
 }
 
 export interface SearchQuery {
-  skill: string;
+  skills: string[];
   type: 'pdf' | 'doc' | 'blog' | 'video' | 'course';
   query: string;
   targetSite?: string;
@@ -87,13 +91,14 @@ export class CourseScraperService {
             url: this.cleanUrl(url),
             snippet,
             dataType,
-            skill: searchQuery.skill,
+            skills: searchQuery.skills,
             query: searchQuery.query,
           });
         }
       });
 
       // If no results with the above selectors, try alternative approach
+// NOTE: point 1
       if (results.length === 0) {
         $('a[href]').each((_, element) => {
           const $el = $(element);
@@ -112,7 +117,7 @@ export class CourseScraperService {
               url: this.cleanUrl(url),
               snippet,
               dataType: this.determineDataType(url, searchQuery.type),
-              skill: searchQuery.skill,
+              skills: searchQuery.skills,
               query: searchQuery.query,
             });
           }
@@ -168,29 +173,30 @@ export class CourseScraperService {
       // Create a simple fallback that generates mock results based on the query
       const results: CourseResult[] = [];
 
+      // NOTE: handle cases where skills is an empty array or beterstill remove the fallback
       // Generate some mock results based on the skill and query
       const mockTitles = [
-        `${searchQuery.skill} Complete Tutorial`,
-        `Learn ${searchQuery.skill} from Scratch`,
-        `${searchQuery.skill} Best Practices`,
-        `${searchQuery.skill} for Beginners`,
-        `Advanced ${searchQuery.skill} Course`
+        `${searchQuery.skills[0]} Complete Tutorial`,
+        `Learn ${searchQuery.skills[0]} from Scratch`,
+        `${searchQuery.skills[0]} Best Practices`,
+        `${searchQuery.skills[0]} for Beginners`,
+        `Advanced ${searchQuery.skills[0]} Course`
       ];
 
       const mockUrls = [
-        `https://dev.to/tutorials/${searchQuery.skill.toLowerCase()}`,
-        `https://youtube.com/watch?v=${searchQuery.skill.toLowerCase()}`,
-        `https://medium.com/${searchQuery.skill.toLowerCase()}-guide`,
-        `https://coursera.org/learn/${searchQuery.skill.toLowerCase()}`,
-        `https://udemy.com/course/${searchQuery.skill.toLowerCase()}-complete`
+        `https://dev.to/tutorials/${searchQuery.skills[0].toLowerCase()}`,
+        `https://youtube.com/watch?v=${searchQuery.skills[0].toLowerCase()}`,
+        `https://medium.com/${searchQuery.skills[0].toLowerCase()}-guide`,
+        `https://coursera.org/learn/${searchQuery.skills[0].toLowerCase()}`,
+        `https://udemy.com/course/${searchQuery.skills[0].toLowerCase()}-complete`
       ];
 
       const mockSnippets = [
-        `Comprehensive guide to ${searchQuery.skill} with practical examples and real-world applications.`,
-        `Learn ${searchQuery.skill} step by step with hands-on projects and exercises.`,
-        `Master ${searchQuery.skill} concepts and best practices for professional development.`,
-        `Complete ${searchQuery.skill} tutorial for beginners to advanced users.`,
-        `In-depth course covering all aspects of ${searchQuery.skill} development and implementation.`
+        `Comprehensive guide to ${searchQuery.skills[0]} with practical examples and real-world applications.`,
+        `Learn ${searchQuery.skills[0]} step by step with hands-on projects and exercises.`,
+        `Master ${searchQuery.skills[0]} concepts and best practices for professional development.`,
+        `Complete ${searchQuery.skills[0]} tutorial for beginners to advanced users.`,
+        `In-depth course covering all aspects of ${searchQuery.skills[0]} development and implementation.`
       ];
 
       for (let i = 0; i < 3; i++) {
@@ -199,7 +205,7 @@ export class CourseScraperService {
           url: mockUrls[i],
           snippet: mockSnippets[i],
           dataType: this.determineDataType(mockUrls[i], searchQuery.type),
-          skill: searchQuery.skill,
+          skills: searchQuery.skills,
           query: searchQuery.query,
         });
       }
@@ -212,4 +218,4 @@ export class CourseScraperService {
     }
   }
 }
- 
+

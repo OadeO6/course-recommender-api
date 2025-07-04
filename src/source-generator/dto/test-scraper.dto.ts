@@ -10,7 +10,7 @@ export class TestScraperDto {
   @IsString()
   platform: 'pdf' | 'doc' | 'blog' | 'video' | 'course';
 
-  @ApiProperty({ example: 'Python' })
+  @ApiProperty({ example: ['Python'] })
   @IsString()
-  skill: string;
-} 
+  skills: string[];
+}
